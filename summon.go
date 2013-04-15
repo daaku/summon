@@ -13,6 +13,15 @@ type Step struct {
 	Defer func() error
 }
 
+func (s Step) LoggedDefer() {
+	if s.Defer == nil {
+		return
+	}
+	if err := s.Defer(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
+}
+
 func main() {
 	options := struct {
 		Name       string        `goptions:"-n, --name, obligatory, description='system name'"`
@@ -91,9 +100,7 @@ func run(steps []Step) error {
 		if err := step.Do(); err != nil {
 			return err
 		}
-		if step.Defer != nil {
-			defer step.Defer()
-		}
+		defer step.LoggedDefer()
 	}
 	return nil
 }
