@@ -9,15 +9,15 @@ import (
 )
 
 type Step struct {
-	Do    func() error
-	Defer func() error
+	Do    func(kill chan bool) error
+	Defer func(kill chan bool) error
 }
 
-func (s Step) LoggedDefer() {
+func (s Step) LoggedDefer(kill chan bool) {
 	if s.Defer == nil {
 		return
 	}
-	if err := s.Defer(); err != nil {
+	if err := s.Defer(kill); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 }
@@ -99,11 +99,13 @@ func main() {
 }
 
 func run(steps []Step) error {
+	kill := make(chan bool)
+	deferKill := make(chan bool)
 	for _, step := range steps {
-		if err := step.Do(); err != nil {
+		if err := step.Do(kill); err != nil {
 			return err
 		}
-		defer step.LoggedDefer()
+		defer step.LoggedDefer(deferKill)
 	}
 	return nil
 }
