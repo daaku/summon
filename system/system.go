@@ -565,18 +565,35 @@ func umountBtrfsRoot(dir string, kill chan bool) error {
 }
 
 func run(cmd *exec.Cmd, kill chan bool) error {
+	if cmd.Stdout != nil {
+		return errors.New("summon: Stdout already set")
+	}
+	if cmd.Stderr != nil {
+		return errors.New("summon: Stderr already set")
+	}
+	var b bytes.Buffer
+	cmd.Stdout = &b
+	cmd.Stderr = &b
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
 	ec := make(chan error)
 	go func() {
-		if out, err := cmd.CombinedOutput(); err != nil {
-			ec <- cmderr.New(cmd, out, err)
+		if err := cmd.Wait(); err != nil {
+			ec <- cmderr.New(cmd, b.Bytes(), err)
 			return
 		}
 		ec <- nil
 	}()
 	select {
 	case <-kill:
-		cmd.Process.Kill()
-		return <-ec
+		e1 := cmd.Process.Kill()
+		e2 := <-ec
+		if e2 != nil {
+			return e2
+		}
+		return e1
 	case err := <-ec:
 		return err
 	}
