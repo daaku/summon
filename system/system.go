@@ -308,11 +308,30 @@ type VirtualFS struct {
 	Dir string
 }
 
+// Mount virtual file systems.
 func (f *VirtualFS) Mount() error {
+	for _, p := range virtualFSs {
+		cmd := exec.Command(
+			"mount", "-bind",
+			path.Join("/", p),
+			path.Join(f.Dir, p),
+		)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return cmderr.New(out, err)
+		}
+	}
 	return nil
 }
 
+// Umount virtual file systems.
 func (f *VirtualFS) Umount() error {
+	for i := len(virtualFSs) - 1; i >= 0; i = i - 1 {
+		p := virtualFSs[i]
+		cmd := exec.Command("umount", path.Join(f.Dir, p))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return cmderr.New(out, err)
+		}
+	}
 	return nil
 }
 
