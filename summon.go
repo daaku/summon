@@ -22,8 +22,8 @@ func main() {
 		goptions.Verbs
 		Create struct {
 			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
-			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file'"`
-			EnableOSX   bool   `goptions:"--enable-osx, description='enable os x'"`
+			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
+			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 		} `goptions:"create"`
 		Backup struct {
 			User string `goptions:"-u, --user, obligatory, description='user to backup'"`
