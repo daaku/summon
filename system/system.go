@@ -408,8 +408,8 @@ func (c *Config) GptSetup() error {
 		return errNoDiskSpecified
 	}
 
-	cmd := exec.Command("sgdisk", "--zap-all", c.Disk)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	zcmd := exec.Command("sgdisk", "--zap-all", c.Disk)
+	if out, err := zcmd.CombinedOutput(); err != nil {
 		return cmderr.New(out, err)
 	}
 
@@ -439,8 +439,8 @@ func (c *Config) GptSetup() error {
 	args = append(args, entry("0", "8300", c.Root.Name)...)
 	args = append(args, c.Disk)
 
-	cmd = exec.Command("sgdisk", args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	ccmd := exec.Command("sgdisk", args...)
+	if out, err := ccmd.CombinedOutput(); err != nil {
 		return cmderr.New(out, err)
 	}
 
