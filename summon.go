@@ -36,9 +36,9 @@ func main() {
 			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
 			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 		} `goptions:"create"`
-		Backup struct {
-			User string `goptions:"-u, --user, obligatory, description='user to backup'"`
-		} `goptions:"backup"`
+		Exec struct {
+			goptions.Remainder
+		} `goptions:"exec"`
 	}{}
 	goptions.ParseAndFail(&options)
 
@@ -81,7 +81,7 @@ func main() {
 			Step{Do: sys.VirtualFS.Mount, Defer: sys.VirtualFS.Umount},
 			Step{Do: sys.InstallSystem},
 		)
-	case "backup":
+	case "exec":
 		sys.Root.Password = termios.Password(
 			fmt.Sprintf("%s disk password: ", sys.Name),
 		)
@@ -90,6 +90,7 @@ func main() {
 			Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
 			Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
 			Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
+			Step{Do: sys.Exec(options.Exec.Remainder)},
 		)
 		break
 	}

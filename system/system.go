@@ -530,6 +530,40 @@ func (c *Config) InstallSystem(kill chan bool) error {
 	return nil
 }
 
+// Execute a command. Will connect stdin, stdout & stderr thru.
+func (c *Config) Exec(args []string) func(kill chan bool) error {
+	return func(kill chan bool) error {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+
+		ec := make(chan error)
+		go func() {
+			if err := cmd.Wait(); err != nil {
+				ec <- err
+				return
+			}
+			ec <- nil
+		}()
+		select {
+		case <-kill:
+			e1 := cmd.Process.Kill()
+			e2 := <-ec
+			if e2 != nil {
+				return e2
+			}
+			return e1
+		case err := <-ec:
+			return err
+		}
+		panic("not reached")
+	}
+}
+
 func (c *Config) label(thing string) string {
 	return fmt.Sprintf("%s-%s", c.Name, thing)
 }
