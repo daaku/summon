@@ -483,6 +483,7 @@ func (c *Config) InstallFileSystem() error {
 		"--root", c.Root.Dir,
 		"--asdeps",
 		"--noconfirm",
+		"--quiet",
 		"--sync",
 		"filesystem",
 	)
@@ -494,6 +495,38 @@ func (c *Config) InstallFileSystem() error {
 
 // Install system.
 func (c *Config) InstallSystem() error {
+	pcmd := exec.Command(
+		"pacman",
+		"--root", c.Root.Dir,
+		"--asdeps",
+		"--noconfirm",
+		"--quiet",
+		"--sync",
+		"lib32-mesa-libgl",
+		"ttf-dejavu",
+		"mesa-libgl",
+		"libreoffice-en-US",
+	)
+	if out, err := pcmd.CombinedOutput(); err != nil {
+		return cmderr.New(pcmd, out, err)
+	}
+
+	f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
+	if err := os.Remove(path.Join(c.Root.Dir, f)); err != nil {
+		return err
+	}
+
+	rcmd := exec.Command(
+		"pacman",
+		"--root", c.Root.Dir,
+		"--noconfirm",
+		"--quiet",
+		"--sync",
+		fmt.Sprintf("%s-system", c.Name),
+	)
+	if out, err := rcmd.CombinedOutput(); err != nil {
+		return cmderr.New(rcmd, out, err)
+	}
 	return nil
 }
 
