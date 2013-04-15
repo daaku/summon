@@ -24,9 +24,9 @@ func (s Step) LoggedDefer() {
 
 func main() {
 	options := struct {
-		Name       string        `goptions:"-n, --name, obligatory, description='system name'"`
-		FileSystem string        `goptions:"-f, --fs, obligatory, description='file system'"`
-		Help       goptions.Help `goptions:"-h, --help, description='show this help'"`
+		Name   string        `goptions:"-n, --name, obligatory, description='system name'"`
+		FSType string        `goptions:"-f, --fs, obligatory, description='file system'"`
+		Help   goptions.Help `goptions:"-h, --help, description='show this help'"`
 
 		goptions.Verbs
 		Create struct {
@@ -41,6 +41,7 @@ func main() {
 	goptions.ParseAndFail(&options)
 
 	sys := system.New(options.Name)
+	sys.Root.FSType = system.FSType(options.FSType)
 	var steps []Step
 
 	switch options.Verbs {
@@ -74,6 +75,7 @@ func main() {
 			Step{Do: sys.Swap.MakeFS},
 			Step{Do: sys.EFI.MakeFS},
 			Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
+			Step{Do: sys.InstallFileSystem},
 			Step{Do: sys.VirtualFS.Mount, Defer: sys.VirtualFS.Umount},
 			Step{Do: sys.InstallSystem},
 		)
