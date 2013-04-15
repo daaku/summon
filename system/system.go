@@ -2,6 +2,7 @@ package system
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/daaku/cmderr"
 )
+
+var errNoDiskSpecified = errors.New("no disk specified")
 
 // File System type.
 type FSType string
@@ -383,12 +386,56 @@ func (c *Config) EnableSwap(keyFile string) {
 
 // Create GPT for system.
 func (c *Config) GptSetup() error {
+	if c.Disk == "" {
+		return errNoDiskSpecified
+	}
+
+	cmd := exec.Command("sgdisk", "--zap-all", c.Disk)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return cmderr.New(out, err)
+	}
+
+	part := 0
+	entry := func(size, typecode, name string) []string {
+		part = part + 1
+		return []string{
+			"--new", fmt.Sprintf("%d:0:%s", part, size),
+			"--typecode", fmt.Sprintf("%d:%s", part, typecode),
+			"--change-name", fmt.Sprintf("%d:%s", part, name),
+		}
+	}
+
+	var args []string
+	efisize := "+64M"
+	if c.EnableOSX {
+		efisize = "+256M"
+	}
+	args = append(args, entry(efisize, "ef00", c.EFI.Name)...)
+	if c.EnableOSX {
+		args = append(args, entry("+30G", "af00", c.label("osx"))...)
+		args = append(args, entry("+620M", "ab00", c.label("recovery"))...)
+	}
+	if c.Swap != nil {
+		args = append(args, entry("+4G", "8200", c.Swap.Name)...)
+	}
+	args = append(args, entry("0", "8300", c.Root.Name)...)
+	args = append(args, c.Disk)
+
+	cmd = exec.Command("sgdisk", args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return cmderr.New(out, err)
+	}
+
 	return nil
 }
 
 // Install system.
 func (c *Config) InstallSystem() error {
 	return nil
+}
+
+func (c *Config) label(thing string) string {
+	return fmt.Sprintf("%s-%s", c.Name, thing)
 }
 
 func mountBtrfsRoot(device string) (string, error) {

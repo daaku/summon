@@ -54,6 +54,7 @@ func main() {
 		os.Exit(2)
 	case "create":
 		sys.EnableOSX = options.Create.EnableOSX
+		sys.Disk = options.Create.Disk
 		if options.Create.SwapKeyFile != "" {
 			sys.EnableSwap(options.Create.SwapKeyFile)
 		}
