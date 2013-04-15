@@ -237,6 +237,9 @@ type SwapDisk struct {
 
 // Initializes the LUKS device.
 func (d *SwapDisk) LuksFormat() error {
+	if d == nil {
+		return nil
+	}
 	cmd := exec.Command(
 		"cryptsetup", "luksFormat",
 		"--cipher", "aes-xts-plain64",
@@ -255,6 +258,9 @@ func (d *SwapDisk) LuksFormat() error {
 
 // Opens the LUKS device.
 func (d *SwapDisk) LuksOpen() error {
+	if d == nil {
+		return nil
+	}
 	cmd := exec.Command(
 		"cryptsetup", "open",
 		"--type", "luks",
@@ -270,6 +276,9 @@ func (d *SwapDisk) LuksOpen() error {
 
 // Closes the existing LUKS mapping.
 func (d *SwapDisk) LuksClose() error {
+	if d == nil {
+		return nil
+	}
 	cmd := exec.Command("cryptsetup", "open", d.Name)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return cmderr.New(out, err)
@@ -279,6 +288,9 @@ func (d *SwapDisk) LuksClose() error {
 
 // Create the Swap file system.
 func (d *SwapDisk) MakeFS() error {
+	if d == nil {
+		return nil
+	}
 	label := fmt.Sprintf("%s-efi", d.Name)
 	cmd := exec.Command("mkswap", "--label", label, d.Mapper)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -289,6 +301,9 @@ func (d *SwapDisk) MakeFS() error {
 
 // Mount this swap.
 func (d *SwapDisk) Mount() error {
+	if d == nil {
+		return nil
+	}
 	if out, err := exec.Command("swapon", d.Mapper).CombinedOutput(); err != nil {
 		return cmderr.New(out, err)
 	}
@@ -297,6 +312,9 @@ func (d *SwapDisk) Mount() error {
 
 // Umount this Swap.
 func (d *SwapDisk) Umount() error {
+	if d == nil {
+		return nil
+	}
 	cmd := exec.Command("swapoff", d.Mapper)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return cmderr.New(out, err)
