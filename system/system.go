@@ -574,11 +574,11 @@ func run(cmd *exec.Cmd, kill chan bool) error {
 		ec <- nil
 	}()
 	select {
-	case err := <-ec:
-		return err
 	case <-kill:
 		cmd.Process.Kill()
 		return <-ec
+	case err := <-ec:
+		return err
 	}
 	panic("not reached")
 }
