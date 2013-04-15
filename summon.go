@@ -6,6 +6,8 @@ import (
 	"github.com/daaku/summon/system"
 	"github.com/voxelbrain/goptions"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 type Step struct {
@@ -99,13 +101,30 @@ func main() {
 }
 
 func run(steps []Step) error {
+	ec := make(chan error)
 	kill := make(chan bool)
 	deferKill := make(chan bool)
-	for _, step := range steps {
-		if err := step.Do(kill); err != nil {
-			return err
-		}
-		defer step.LoggedDefer(deferKill)
+
+	go func() {
+		ec <- func() error {
+			for _, step := range steps {
+				if err := step.Do(kill); err != nil {
+					return err
+				}
+				defer step.LoggedDefer(deferKill)
+			}
+			return nil
+		}()
+	}()
+
+	sig := make(chan os.Signal, 2)
+	signal.Notify(sig, syscall.SIGINT)
+	select {
+	case <-sig:
+		close(kill)
+		return <-ec
+	case err := <-ec:
+		return err
 	}
-	return nil
+	panic("not reached")
 }
