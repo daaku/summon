@@ -49,8 +49,8 @@ func (d *EncryptedDisk) LuksFormat() error {
 		d.Device,
 	)
 	cmd.Stdin = bytes.NewBufferString(d.Password)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -59,8 +59,8 @@ func (d *EncryptedDisk) LuksFormat() error {
 func (d *EncryptedDisk) LuksOpen() error {
 	cmd := exec.Command("cryptsetup", "open", "--type", "luks", d.Device, d.Name)
 	cmd.Stdin = bytes.NewBufferString(d.Password)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -68,8 +68,8 @@ func (d *EncryptedDisk) LuksOpen() error {
 // Closes the existing LUKS mapping.
 func (d *EncryptedDisk) LuksClose() error {
 	cmd := exec.Command("cryptsetup", "close", d.Name)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -92,8 +92,8 @@ func (d *EncryptedDisk) MakeFS() error {
 		"-L", fmt.Sprintf("%s-root", d.Name),
 		d.Mapper,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 
 	// for btrfs we ensure creation of an active subvolume
@@ -106,8 +106,8 @@ func (d *EncryptedDisk) MakeFS() error {
 
 		activedir := path.Join(dir, btrfsActive)
 		scmd := exec.Command("btrfs", "subvolume", "create", activedir)
-		if out, err := scmd.CombinedOutput(); err != nil {
-			return cmderr.New(cmd, out, err)
+		if err := run(scmd); err != nil {
+			return err
 		}
 		return nil
 	}
@@ -133,8 +133,8 @@ func (d *EncryptedDisk) Mount() error {
 		d.Mapper,
 		d.Dir,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -142,8 +142,8 @@ func (d *EncryptedDisk) Mount() error {
 // Unmount the File System.
 func (d *EncryptedDisk) Umount() error {
 	cmd := exec.Command("umount", d.Dir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 
 	if err := os.Remove(d.Dir); err != nil {
@@ -177,8 +177,8 @@ func (d *EncryptedDisk) Snapshot(name string) error {
 		path.Join(dir, btrfsActive),
 		path.Join(snapdir, snapname),
 	)
-	if out, err := scmd.CombinedOutput(); err != nil {
-		return cmderr.New(scmd, out, err)
+	if err := run(scmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -198,8 +198,8 @@ func (d *EFIDisk) MakeFS() error {
 		"-n", fmt.Sprintf("%s-efi", d.Name),
 		d.Device,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -212,8 +212,8 @@ func (d *EFIDisk) Mount() error {
 	}
 
 	cmd := exec.Command("mount", "-t", string(Vfat), d.Device, d.Dir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -221,8 +221,8 @@ func (d *EFIDisk) Mount() error {
 // Umount the EFI disk. Does not remove the target directory.
 func (d *EFIDisk) Umount() error {
 	cmd := exec.Command("umount", d.Dir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -250,8 +250,8 @@ func (d *SwapDisk) LuksFormat() error {
 		"--key-file", d.KeyFile,
 		d.Device,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -268,8 +268,8 @@ func (d *SwapDisk) LuksOpen() error {
 		d.Device,
 		d.Name,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -280,8 +280,8 @@ func (d *SwapDisk) LuksClose() error {
 		return nil
 	}
 	cmd := exec.Command("cryptsetup", "close", d.Name)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -293,8 +293,8 @@ func (d *SwapDisk) MakeFS() error {
 	}
 	label := fmt.Sprintf("%s-efi", d.Name)
 	cmd := exec.Command("mkswap", "--label", label, d.Mapper)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -305,8 +305,8 @@ func (d *SwapDisk) Mount() error {
 		return nil
 	}
 	cmd := exec.Command("swapon", d.Mapper)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -317,8 +317,8 @@ func (d *SwapDisk) Umount() error {
 		return nil
 	}
 	cmd := exec.Command("swapoff", d.Mapper)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -338,8 +338,8 @@ func (f *VirtualFS) Mount() error {
 			path.Join("/", p),
 			path.Join(f.Dir, p),
 		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return cmderr.New(cmd, out, err)
+		if err := run(cmd); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -350,8 +350,8 @@ func (f *VirtualFS) Umount() error {
 	for i := len(virtualFSs) - 1; i >= 0; i = i - 1 {
 		p := virtualFSs[i]
 		cmd := exec.Command("umount", path.Join(f.Dir, p))
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return cmderr.New(cmd, out, err)
+		if err := run(cmd); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -410,8 +410,8 @@ func (c *Config) GptSetup() error {
 	}
 
 	zcmd := exec.Command("sgdisk", "--zap-all", c.Disk)
-	if out, err := zcmd.CombinedOutput(); err != nil {
-		return cmderr.New(zcmd, out, err)
+	if err := run(zcmd); err != nil {
+		return err
 	}
 
 	part := 0
@@ -441,8 +441,8 @@ func (c *Config) GptSetup() error {
 	args = append(args, c.Disk)
 
 	ccmd := exec.Command("sgdisk", args...)
-	if out, err := ccmd.CombinedOutput(); err != nil {
-		return cmderr.New(ccmd, out, err)
+	if err := run(ccmd); err != nil {
+		return err
 	}
 
 	max := time.Second * 2
@@ -487,8 +487,8 @@ func (c *Config) InstallFileSystem() error {
 		"--sync",
 		"filesystem",
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -507,8 +507,8 @@ func (c *Config) InstallSystem() error {
 		"mesa-libgl",
 		"libreoffice-en-US",
 	)
-	if out, err := pcmd.CombinedOutput(); err != nil {
-		return cmderr.New(pcmd, out, err)
+	if err := run(pcmd); err != nil {
+		return err
 	}
 
 	f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
@@ -524,8 +524,8 @@ func (c *Config) InstallSystem() error {
 		"--sync",
 		fmt.Sprintf("%s-system", c.Name),
 	)
-	if out, err := rcmd.CombinedOutput(); err != nil {
-		return cmderr.New(rcmd, out, err)
+	if err := run(rcmd); err != nil {
+		return err
 	}
 	return nil
 }
@@ -547,19 +547,26 @@ func mountBtrfsRoot(device string) (string, error) {
 		device,
 		dir,
 	)
-	if out, err := mcmd.CombinedOutput(); err != nil {
-		return "", cmderr.New(mcmd, out, err)
+	if err := run(mcmd); err != nil {
+		return "", err
 	}
 	return dir, nil
 }
 
 func umountBtrfsRoot(dir string) error {
 	cmd := exec.Command("umount", dir)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return cmderr.New(cmd, out, err)
+	if err := run(cmd); err != nil {
+		return err
 	}
 	if err := os.Remove(dir); err != nil {
 		return err
+	}
+	return nil
+}
+
+func run(cmd *exec.Cmd) error {
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return cmderr.New(cmd, out, err)
 	}
 	return nil
 }
