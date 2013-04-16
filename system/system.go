@@ -530,6 +530,35 @@ func (c *Config) InstallSystem(kill chan bool) error {
 	return nil
 }
 
+// Post install steps.
+func (c *Config) PostInstall(kill chan bool) error {
+	cmds := [][]string{
+		[]string{c.Root.Dir, "/usr/bin/pacman-key", "--init"},
+		[]string{c.Root.Dir, "/usr/bin/pacman-key", "--populate", "archlinux"},
+		[]string{c.Root.Dir, "/usr/bin/locale-gen"},
+		[]string{c.Root.Dir, "/usr/bin/mandb", "--quiet"},
+	}
+
+	for _, cmd := range cmds {
+		if err := run(exec.Command("chroot", cmd...), kill); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Setup password.
+func (c *Config) Passwd(user, pass string) func(kill chan bool) error {
+	return func(kill chan bool) error {
+		cmd := exec.Command("chroot", c.Root.Dir, "/usr/bin/passwd", user)
+		cmd.Stdin = bytes.NewBufferString(pass + "\n" + pass + "\n")
+		if err := run(cmd, kill); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
 // Execute a command. Will connect stdin, stdout & stderr thru.
 func (c *Config) Exec(args []string) func(kill chan bool) error {
 	return func(kill chan bool) error {

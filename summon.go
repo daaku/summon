@@ -33,6 +33,7 @@ func main() {
 		goptions.Verbs
 		Create struct {
 			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
+			User        string `goptions:"-u, --user, description='user to set password for'"`
 			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
 			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 		} `goptions:"create"`
@@ -65,6 +66,10 @@ func main() {
 			fmt.Sprintf("%s disk password: ", sys.Name),
 			fmt.Sprintf("confirm %s disk password: ", sys.Name),
 		)
+		userpass := termios.PasswordConfirm(
+			fmt.Sprintf("%s user password: ", sys.Name),
+			fmt.Sprintf("confirm %s user password: ", sys.Name),
+		)
 		steps = append(
 			steps,
 			Step{Do: sys.GptSetup},
@@ -80,7 +85,12 @@ func main() {
 			Step{Do: sys.InstallFileSystem},
 			Step{Do: sys.VirtualFS.Mount, Defer: sys.VirtualFS.Umount},
 			Step{Do: sys.InstallSystem},
+			Step{Do: sys.PostInstall},
+			Step{Do: sys.Passwd("root", userpass)},
 		)
+		if options.Create.User != "" {
+			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
+		}
 	case "exec":
 		sys.Root.Password = termios.Password(
 			fmt.Sprintf("%s disk password: ", sys.Name),
