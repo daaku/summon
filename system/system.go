@@ -10,7 +10,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/daaku/cmderr"
+	"github.com/daaku/go.cmderr"
 )
 
 var errNoDiskSpecified = errors.New("no disk specified")
