@@ -87,12 +87,7 @@ func (d *EncryptedDisk) MakeFS(kill chan bool) error {
 		return fmt.Errorf("unknown filesystem type: %s", string(d.FSType))
 	}
 
-	cmd := exec.Command(
-		bin,
-		"-L", fmt.Sprintf("%s-root", d.Name),
-		d.Mapper,
-	)
-	if err := run(cmd, kill); err != nil {
+	if err := run(exec.Command(bin, "-L", d.Name, d.Mapper), kill); err != nil {
 		return err
 	}
 
@@ -192,12 +187,7 @@ type EFIDisk struct {
 
 // Create the EFI file system.
 func (d *EFIDisk) MakeFS(kill chan bool) error {
-	cmd := exec.Command(
-		"mkfs.vfat",
-		"-F32",
-		"-n", fmt.Sprintf("%s-efi", d.Name),
-		d.Device,
-	)
+	cmd := exec.Command("mkfs.vfat", "-F32", "-n", d.Name, d.Device)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -291,7 +281,7 @@ func (d *SwapDisk) MakeFS(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
-	label := fmt.Sprintf("%s-efi", d.Name)
+	label := fmt.Sprintf("%s-swap", d.Name)
 	cmd := exec.Command("mkswap", "--label", label, d.Mapper)
 	if err := run(cmd, kill); err != nil {
 		return err
