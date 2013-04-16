@@ -537,6 +537,7 @@ func (c *Config) PostInstall(kill chan bool) error {
 		[]string{c.Root.Dir, "/usr/bin/pacman-key", "--populate", "archlinux"},
 		[]string{c.Root.Dir, "/usr/bin/locale-gen"},
 		[]string{c.Root.Dir, "/usr/bin/mandb", "--quiet"},
+		[]string{c.Root.Dir, "/usr/bin/mkinitcpio", "-p", "linux"},
 	}
 
 	for _, cmd := range cmds {
