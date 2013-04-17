@@ -148,34 +148,36 @@ func (d *EncryptedDisk) Umount(kill chan bool) error {
 }
 
 // Create a snapshot, if the target File System supports this.
-func (d *EncryptedDisk) Snapshot(name string, kill chan bool) error {
-	if d.FSType != Btrfs {
+func (d *EncryptedDisk) Snapshot(name string) func(kill chan bool) error {
+	return func(kill chan bool) error {
+		if d.FSType != Btrfs {
+			return nil
+		}
+
+		dir, err := mountBtrfsRoot(d.Mapper, kill)
+		if err != nil {
+			return err
+		}
+		defer umountBtrfsRoot(dir, kill)
+
+		snapdir := path.Join(dir, "__snapshot")
+		if err := os.MkdirAll(snapdir, os.FileMode(755)); err != nil {
+			return err
+		}
+
+		t := time.Now()
+		snapname := fmt.Sprintf("%s-%d-%s", t.Format(tsFormat), t.UnixNano(), name)
+		scmd := exec.Command(
+			"btrfs", "subvolume", "snapshot",
+			"-r",
+			path.Join(dir, btrfsActive),
+			path.Join(snapdir, snapname),
+		)
+		if err := run(scmd, kill); err != nil {
+			return err
+		}
 		return nil
 	}
-
-	dir, err := mountBtrfsRoot(d.Mapper, kill)
-	if err != nil {
-		return err
-	}
-	defer umountBtrfsRoot(dir, kill)
-
-	snapdir := path.Join(dir, "__snapshot")
-	if err := os.MkdirAll(snapdir, os.FileMode(755)); err != nil {
-		return err
-	}
-
-	t := time.Now()
-	snapname := fmt.Sprintf("%s-%d-%s", t.Format(tsFormat), t.UnixNano(), name)
-	scmd := exec.Command(
-		"btrfs", "subvolume", "snapshot",
-		"-r",
-		path.Join(dir, btrfsActive),
-		path.Join(snapdir, snapname),
-	)
-	if err := run(scmd, kill); err != nil {
-		return err
-	}
-	return nil
 }
 
 // EFI disk config.

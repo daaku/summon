@@ -87,6 +87,7 @@ func main() {
 			Step{Do: sys.InstallSystem},
 			Step{Do: sys.PostInstall},
 			Step{Do: sys.Passwd("root", userpass)},
+			Step{Do: sys.Root.Snapshot("as-installed")},
 		)
 		if options.Create.User != "" {
 			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
