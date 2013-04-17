@@ -118,6 +118,11 @@ func (d *EncryptedDisk) Mount(kill chan bool) error {
 	}
 
 	options := "noatime"
+	if d.FSType == "" {
+		if d.FSType, err = d.identifyFSType(); err != nil {
+			return err
+		}
+	}
 	if d.FSType == Btrfs {
 		options = fmt.Sprintf("%s,compress=lzo,subvol=%s", options, btrfsActive)
 	}
@@ -132,6 +137,16 @@ func (d *EncryptedDisk) Mount(kill chan bool) error {
 		return err
 	}
 	return nil
+}
+
+// Identify the FSType.
+func (d *EncryptedDisk) identifyFSType() (FSType, error) {
+	cmd := exec.Command("lsblk", "--noheadings", "--output", "fstype", d.Mapper)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return FSType(""), cmderr.New(cmd, out, err)
+	}
+	return FSType(string(bytes.TrimSpace(out))), nil
 }
 
 // Unmount the File System.

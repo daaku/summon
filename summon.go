@@ -26,12 +26,12 @@ func (s Step) LoggedDefer(kill chan bool) {
 
 func main() {
 	options := struct {
-		Name   string        `goptions:"-n, --name, obligatory, description='system name'"`
-		FSType string        `goptions:"-f, --fs, obligatory, description='file system'"`
-		Help   goptions.Help `goptions:"-h, --help, description='show this help'"`
+		Name string        `goptions:"-n, --name, obligatory, description='system name'"`
+		Help goptions.Help `goptions:"-h, --help, description='show this help'"`
 
 		goptions.Verbs
 		Create struct {
+			FSType      string `goptions:"-f, --fs, obligatory, description='file system'"`
 			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
 			User        string `goptions:"-u, --user, description='user to set password for'"`
 			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
@@ -39,7 +39,7 @@ func main() {
 		} `goptions:"create"`
 		Backup struct {
 			goptions.Remainder
-		}
+		} `goptions:"backup"`
 		Exec struct {
 			goptions.Remainder
 		} `goptions:"exec"`
@@ -47,7 +47,6 @@ func main() {
 	goptions.ParseAndFail(&options)
 
 	sys := system.New(options.Name)
-	sys.Root.FSType = system.FSType(options.FSType)
 	var steps []Step
 
 	switch options.Verbs {
@@ -62,6 +61,7 @@ func main() {
 	case "create":
 		sys.EnableOSX = options.Create.EnableOSX
 		sys.Disk = options.Create.Disk
+		sys.Root.FSType = system.FSType(options.Create.FSType)
 		if options.Create.SwapKeyFile != "" {
 			sys.EnableSwap(options.Create.SwapKeyFile)
 		}
