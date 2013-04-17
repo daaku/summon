@@ -586,6 +586,25 @@ func (c *Config) Exec(args []string) func(kill chan bool) error {
 	}
 }
 
+// Run a rsync command and backup some data.
+func (c *Config) Backup(args []string) func(kill chan bool) error {
+	return func(kill chan bool) error {
+		cargs := []string{
+			"--archive",
+			"--one-file-system",
+			"--sparse",
+			"--delete-delay",
+			"--partial",
+			"--xattrs",
+		}
+		cargs = append(cargs, args...)
+		if err := run(exec.Command("rsync", cargs...), kill); err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
 func (c *Config) label(thing string) string {
 	return fmt.Sprintf("%s-%s", c.Name, thing)
 }

@@ -37,6 +37,9 @@ func main() {
 			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
 			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 		} `goptions:"create"`
+		Backup struct {
+			goptions.Remainder
+		}
 		Exec struct {
 			goptions.Remainder
 		} `goptions:"exec"`
@@ -70,8 +73,7 @@ func main() {
 			fmt.Sprintf("%s user password: ", sys.Name),
 			fmt.Sprintf("confirm %s user password: ", sys.Name),
 		)
-		steps = append(
-			steps,
+		steps = []Step{
 			Step{Do: sys.GptSetup},
 			Step{Do: sys.Root.LuksFormat},
 			Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
@@ -88,16 +90,19 @@ func main() {
 			Step{Do: sys.PostInstall},
 			Step{Do: sys.Passwd("root", userpass)},
 			Step{Do: sys.Root.Snapshot("as-installed")},
-		)
+		}
 		if options.Create.User != "" {
 			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
 		}
 	case "exec":
-		steps = append(
-			steps,
-			exec(sys, Step{Do: sys.Exec(options.Exec.Remainder)})...,
-		)
+		steps = exec(sys, Step{Do: sys.Exec(options.Exec.Remainder)})
 		break
+	case "backup":
+		steps = exec(
+			sys,
+			Step{Do: sys.Backup(options.Backup.Remainder)},
+			Step{Do: sys.Root.Snapshot("backup")},
+		)
 	}
 
 	if err := run(steps); err != nil {
