@@ -93,15 +93,9 @@ func main() {
 			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
 		}
 	case "exec":
-		sys.Root.Password = termios.Password(
-			fmt.Sprintf("%s disk password: ", sys.Name),
-		)
 		steps = append(
 			steps,
-			Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
-			Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
-			Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
-			Step{Do: sys.Exec(options.Exec.Remainder)},
+			exec(sys, Step{Do: sys.Exec(options.Exec.Remainder)})...,
 		)
 		break
 	}
@@ -110,6 +104,18 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(3)
 	}
+}
+
+func exec(sys *system.Config, steps ...Step) []Step {
+	sys.Root.Password = termios.Password(
+		fmt.Sprintf("%s disk password: ", sys.Name),
+	)
+	r := []Step{
+		Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
+		Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
+		Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
+	}
+	return append(r, steps...)
 }
 
 func run(steps []Step) error {
