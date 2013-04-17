@@ -43,6 +43,9 @@ func main() {
 		Exec struct {
 			goptions.Remainder
 		} `goptions:"exec"`
+		NSpawn struct {
+			goptions.Remainder
+		} `goptions:"nspawn"`
 	}{}
 	goptions.ParseAndFail(&options)
 
@@ -96,13 +99,20 @@ func main() {
 		}
 	case "exec":
 		steps = exec(sys, Step{Do: sys.Exec(options.Exec.Remainder)})
-		break
 	case "backup":
 		steps = exec(
 			sys,
 			Step{Do: sys.Backup(options.Backup.Remainder)},
 			Step{Do: sys.Root.Snapshot("backup")},
 		)
+	case "nspawn":
+		args := []string{"systemd-nspawn", "--directory", sys.Root.Dir}
+		if len(options.NSpawn.Remainder) == 0 {
+			args = append(args, "/usr/bin/bash", "--login")
+		} else {
+			args = append(args, options.NSpawn.Remainder...)
+		}
+		steps = exec(sys, Step{Do: sys.Exec(args)})
 	}
 
 	if err := run(steps); err != nil {
