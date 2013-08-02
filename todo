@@ -1,0 +1,6 @@
+- generate swap key
+- env variables for exec
+- pacman -Syu + backup command
+- intelligent selection of pre-install/prompt packages
+- smaller test system setup
+- unit tests
