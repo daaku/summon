@@ -31,11 +31,11 @@ func main() {
 
 		goptions.Verbs
 		Create struct {
-			FSType      string `goptions:"-f, --fs, obligatory, description='file system'"`
-			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
-			User        string `goptions:"-u, --user, description='user to set password for'"`
-			SwapKeyFile string `goptions:"--swap-key-file, description='swap key file (swap disabled by default)'"`
-			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
+			FSType     string `goptions:"-f, --fs, obligatory, description='file system'"`
+			Disk       string `goptions:"-d, --disk, obligatory, description='target disk'"`
+			User       string `goptions:"-u, --user, description='user to set password for'"`
+			EnableSwap bool   `goptions:"--enable-swap, description='enable encrypted swap'"`
+			EnableOSX  bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 		} `goptions:"create"`
 		Backup struct {
 			goptions.Remainder
@@ -65,8 +65,8 @@ func main() {
 		sys.EnableOSX = options.Create.EnableOSX
 		sys.Disk = options.Create.Disk
 		sys.Root.FSType = system.FSType(options.Create.FSType)
-		if options.Create.SwapKeyFile != "" {
-			sys.EnableSwap(options.Create.SwapKeyFile)
+		if options.Create.EnableSwap {
+			sys.EnableSwap()
 		}
 		sys.Root.Password = termios.PasswordConfirm(
 			fmt.Sprintf("%s disk password: ", sys.Name),

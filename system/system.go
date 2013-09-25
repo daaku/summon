@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/daaku/go.cmderr"
@@ -236,10 +237,10 @@ func (d *EFIDisk) Umount(kill chan bool) error {
 
 // Swap disk config.
 type SwapDisk struct {
-	Name    string
-	Device  string
-	Mapper  string
-	KeyFile string
+	Name     string
+	Device   string
+	Mapper   string
+	RootName string
 }
 
 // Initializes the LUKS device.
@@ -247,6 +248,12 @@ func (d *SwapDisk) LuksFormat(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
+
+	key, err := d.key()
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command(
 		"cryptsetup", "luksFormat",
 		"--cipher", "aes-xts-plain64",
@@ -254,9 +261,9 @@ func (d *SwapDisk) LuksFormat(kill chan bool) error {
 		"--hash", "sha512",
 		"--iter-time", "5000",
 		"--use-random",
-		"--key-file", d.KeyFile,
 		d.Device,
 	)
+	cmd.Stdin = strings.NewReader(key)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -268,17 +275,37 @@ func (d *SwapDisk) LuksOpen(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
+
+	key, err := d.key()
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command(
 		"cryptsetup", "open",
 		"--type", "luks",
-		"--key-file", d.KeyFile,
 		d.Device,
 		d.Name,
 	)
+	cmd.Stdin = strings.NewReader(key)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
 	return nil
+}
+
+// Read the key of the root partition.
+func (d *SwapDisk) key() (string, error) {
+	cmd := exec.Command("dmsetup", "--showkeys", "table", d.RootName)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	parts := bytes.Split(out, []byte(" "))
+	if len(parts) < 5 {
+		return "", fmt.Errorf("did not find key using dmsetup: %s", out)
+	}
+	return string(parts[4]), nil
 }
 
 // Closes the existing LUKS mapping.
@@ -400,13 +427,13 @@ func New(name string) *Config {
 }
 
 // Enable a swap disk.
-func (c *Config) EnableSwap(keyFile string) {
+func (c *Config) EnableSwap() {
 	name := fmt.Sprintf("%s-swap", c.Name)
 	c.Swap = &SwapDisk{
-		Name:    name,
-		KeyFile: keyFile,
-		Device:  path.Join("/dev/disk/by-partlabel", name),
-		Mapper:  path.Join("/dev/mapper", name),
+		Name:     name,
+		RootName: c.Root.Name,
+		Device:   path.Join("/dev/disk/by-partlabel", name),
+		Mapper:   path.Join("/dev/mapper", name),
 	}
 }
 
