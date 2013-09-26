@@ -679,6 +679,7 @@ func (c *Config) GenRefind(kill chan bool) error {
 	}
 	options := `init=/usr/lib/systemd/systemd` +
 		` ro` +
+		` plymouth.enable=0` +
 		` root=/dev/mapper/` + c.Root.Name +
 		` cryptdevice=/dev/disk/by-partlabel/` + c.Root.Name + `:` + c.Root.Name +
 		extra
