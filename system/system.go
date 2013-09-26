@@ -206,7 +206,7 @@ type EFIDisk struct {
 
 // Create the EFI file system.
 func (d *EFIDisk) MakeFS(kill chan bool) error {
-	cmd := exec.Command("mkfs.vfat", "-F32", "-n", d.Name, d.Device)
+	cmd := exec.Command("mkfs.vfat", "-F32", "-s1", "-n", d.Name, d.Device)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
