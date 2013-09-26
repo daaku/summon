@@ -575,7 +575,6 @@ func (c *Config) PostInstall(kill chan bool) error {
 		{r, "/usr/bin/mkinitcpio", "-p", "linux"},
 		{r, "/usr/bin/cp", "/boot/vmlinuz-linux", "/boot/efi/EFI/archlinux/vmlinuz.efi"},
 		{r, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
-		{r, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
 	}
 
 	for _, cmd := range cmds {
