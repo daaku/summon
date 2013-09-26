@@ -546,12 +546,12 @@ func (c *Config) InstallSystem(kill chan bool) error {
 		if err := run(pcmd, kill); err != nil {
 			return err
 		}
-	*/
 
-	f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
-	if err := os.Remove(path.Join(c.Root.Dir, f)); err != nil {
-		return err
-	}
+		f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
+		if err := os.Remove(path.Join(c.Root.Dir, f)); err != nil {
+			return err
+		}
+	*/
 
 	rcmd := exec.Command(
 		"pacman",
@@ -661,7 +661,7 @@ func (c *Config) Backup(args []string) func(kill chan bool) error {
 func (c *Config) GenEtcHostname(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.Root.Dir, "etc", "hostname"),
-		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
+		os.O_WRONLY|os.O_CREATE,
 		os.FileMode(0644),
 	)
 	if err != nil {
@@ -683,7 +683,7 @@ func (c *Config) GenEtcHostname(kill chan bool) error {
 func (c *Config) GenRefind(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.EFI.Dir, "EFI", "archlinux", "refind_linux.conf"),
-		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
+		os.O_WRONLY|os.O_CREATE,
 		os.FileMode(0755),
 	)
 	if err != nil {
@@ -721,7 +721,7 @@ func (c *Config) GenRefind(kill chan bool) error {
 func (c *Config) GenFstab(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.Root.Dir, "etc", "fstab"),
-		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
+		os.O_WRONLY|os.O_CREATE,
 		os.FileMode(0755),
 	)
 	if err != nil {
