@@ -530,21 +530,23 @@ func (c *Config) InstallFileSystem(kill chan bool) error {
 
 // Install system.
 func (c *Config) InstallSystem(kill chan bool) error {
-	pcmd := exec.Command(
-		"pacman",
-		"--root", c.Root.Dir,
-		"--asdeps",
-		"--noconfirm",
-		"--quiet",
-		"--sync",
-		"lib32-mesa-libgl",
-		"ttf-dejavu",
-		"mesa-libgl",
-		"libreoffice-en-US",
-	)
-	if err := run(pcmd, kill); err != nil {
-		return err
-	}
+	/*
+		pcmd := exec.Command(
+			"pacman",
+			"--root", c.Root.Dir,
+			"--asdeps",
+			"--noconfirm",
+			"--quiet",
+			"--sync",
+			"lib32-mesa-libgl",
+			"ttf-dejavu",
+			"mesa-libgl",
+			"libreoffice-en-US",
+		)
+		if err := run(pcmd, kill); err != nil {
+			return err
+		}
+	*/
 
 	f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
 	if err := os.Remove(path.Join(c.Root.Dir, f)); err != nil {
@@ -572,10 +574,14 @@ func (c *Config) PostInstall(kill chan bool) error {
 		{r, "/usr/bin/pacman-key", "--init"},
 		{r, "/usr/bin/pacman-key", "--populate", "archlinux"},
 		{r, "/usr/bin/locale-gen"},
-		{r, "/usr/bin/mandb", "--quiet"},
 		{r, "/usr/bin/mkinitcpio", "-p", "linux"},
 		{r, "/usr/bin/cp", "/boot/vmlinuz-linux", "/boot/efi/EFI/archlinux/vmlinuz.efi"},
 		{r, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
+	}
+
+	mandb := "/usr/bin/mandb"
+	if _, err := os.Stat(filepath.Join(r, mandb)); err == nil {
+		cmds = append(cmds, []string{r, mandb, "--quiet"})
 	}
 
 	for _, cmd := range cmds {
@@ -655,7 +661,7 @@ func (c *Config) Backup(args []string) func(kill chan bool) error {
 func (c *Config) GenEtcHostname(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.Root.Dir, "etc", "hostname"),
-		os.O_WRONLY|os.O_TRUNC,
+		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
 		os.FileMode(0644),
 	)
 	if err != nil {
@@ -677,7 +683,7 @@ func (c *Config) GenEtcHostname(kill chan bool) error {
 func (c *Config) GenRefind(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.EFI.Dir, "EFI", "archlinux", "refind_linux.conf"),
-		os.O_WRONLY|os.O_TRUNC,
+		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
 		os.FileMode(0755),
 	)
 	if err != nil {
@@ -703,6 +709,96 @@ func (c *Config) GenRefind(kill chan bool) error {
 `
 	if _, err := fmt.Fprintf(f, contentsTemplate, options, options); err != nil {
 		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Generate fstab.
+func (c *Config) GenFstab(kill chan bool) error {
+	f, err := os.OpenFile(
+		filepath.Join(c.Root.Dir, "etc", "fstab"),
+		os.O_WRONLY|os.O_TRUNC|os.O_CREATE,
+		os.FileMode(0755),
+	)
+	if err != nil {
+		return err
+	}
+	defer f.Close() // backup Close
+
+	var lines [][]string
+	rootOptions := "noatime"
+	rootSuffix := "0 1"
+	if c.Root.FSType == Btrfs {
+		rootOptions += ",compress=lzo,subvol=__active"
+		rootSuffix = "0 0"
+	}
+
+	lines = append(
+		lines,
+		[]string{
+			filepath.Join("/dev/mapper", c.Root.Name),
+			"/",
+			string(c.Root.FSType),
+			rootOptions,
+			rootSuffix,
+		},
+	)
+
+	if c.Root.FSType == Btrfs {
+		lines = append(
+			lines,
+			[]string{
+				filepath.Join("/dev/mapper", c.Root.Name),
+				"/mnt/root",
+				string(Btrfs),
+				"noatime,compress=lzo",
+				"0 0",
+			},
+		)
+	}
+
+	if c.Swap != nil {
+		lines = append(
+			lines,
+			[]string{
+				filepath.Join("/dev/mapper", c.Swap.Name),
+				"none",
+				"swap",
+				"defaults",
+				"0 0",
+			},
+		)
+	}
+
+	lines = append(
+		lines,
+		[]string{
+			filepath.Join("/dev/disk/by-partlabel", c.EFI.Name),
+			"/boot/efi",
+			"vfat",
+			"defaults",
+			"0 0",
+		},
+	)
+
+	for _, l := range lines {
+		for pi, p := range l {
+			if pi != 0 {
+				if _, err := f.WriteString(" "); err != nil {
+					return err
+				}
+			}
+			if _, err := f.WriteString(p); err != nil {
+				return err
+			}
+		}
+		if _, err := f.WriteString("\n"); err != nil {
+			return err
+		}
 	}
 
 	if err := f.Close(); err != nil {

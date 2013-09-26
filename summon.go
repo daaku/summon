@@ -98,6 +98,7 @@ func main() {
 			Step{Do: sys.InstallSystem},
 			Step{Do: sys.GenEtcHostname},
 			Step{Do: sys.GenRefind},
+			Step{Do: sys.GenFstab},
 			Step{Do: sys.PostInstall},
 			Step{Do: sys.Passwd("root", userpass)},
 			Step{Do: sys.Root.Snapshot("as-installed")},
