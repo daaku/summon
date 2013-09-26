@@ -36,6 +36,7 @@ func main() {
 			User       string `goptions:"-u, --user, description='user to set password for'"`
 			EnableSwap bool   `goptions:"--enable-swap, description='enable encrypted swap'"`
 			EnableOSX  bool   `goptions:"--enable-osx, description='create OS X partitions'"`
+			KeepGPT    bool   `goptions:"--keep-gpt, description='keep the existing GPT'"`
 		} `goptions:"create"`
 		Backup struct {
 			goptions.Remainder
@@ -76,8 +77,13 @@ func main() {
 			fmt.Sprintf("%s user password: ", sys.Name),
 			fmt.Sprintf("confirm %s user password: ", sys.Name),
 		)
-		steps = []Step{
-			Step{Do: sys.GptSetup},
+
+		if !options.Create.KeepGPT {
+			steps = append(steps, Step{Do: sys.GptSetup})
+		}
+
+		steps = append(
+			steps,
 			Step{Do: sys.Root.LuksFormat},
 			Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
 			Step{Do: sys.Root.MakeFS},
@@ -93,7 +99,7 @@ func main() {
 			Step{Do: sys.PostInstall},
 			Step{Do: sys.Passwd("root", userpass)},
 			Step{Do: sys.Root.Snapshot("as-installed")},
-		}
+		)
 		if options.Create.User != "" {
 			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
 		}
