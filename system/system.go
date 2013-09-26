@@ -531,29 +531,6 @@ func (c *Config) InstallFileSystem(kill chan bool) error {
 
 // Install system.
 func (c *Config) InstallSystem(kill chan bool) error {
-	/*
-		pcmd := exec.Command(
-			"pacman",
-			"--root", c.Root.Dir,
-			"--asdeps",
-			"--noconfirm",
-			"--quiet",
-			"--sync",
-			"lib32-mesa-libgl",
-			"ttf-dejavu",
-			"mesa-libgl",
-			"libreoffice-en-US",
-		)
-		if err := run(pcmd, kill); err != nil {
-			return err
-		}
-
-		f := "etc/systemd/system/getty.target.wants/getty@tty1.service"
-		if err := os.Remove(path.Join(c.Root.Dir, f)); err != nil {
-			return err
-		}
-	*/
-
 	pkg := c.Package
 	if pkg == "" {
 		pkg = fmt.Sprintf("%s-system", c.Name)
