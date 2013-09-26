@@ -396,6 +396,7 @@ func (f *VirtualFS) Umount(kill chan bool) error {
 type Config struct {
 	Name      string
 	Disk      string
+	Package   string
 	Root      *EncryptedDisk
 	EFI       *EFIDisk
 	Swap      *SwapDisk
@@ -553,13 +554,18 @@ func (c *Config) InstallSystem(kill chan bool) error {
 		}
 	*/
 
+	pkg := c.Package
+	if pkg == "" {
+		pkg = fmt.Sprintf("%s-system", c.Name)
+	}
+
 	rcmd := exec.Command(
 		"pacman",
 		"--root", c.Root.Dir,
 		"--noconfirm",
 		"--quiet",
 		"--sync",
-		fmt.Sprintf("%s-system", c.Name),
+		pkg,
 	)
 	if err := run(rcmd, kill); err != nil {
 		return err
