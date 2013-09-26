@@ -572,6 +572,8 @@ func (c *Config) PostInstall(kill chan bool) error {
 		[]string{c.Root.Dir, "/usr/bin/locale-gen"},
 		[]string{c.Root.Dir, "/usr/bin/mandb", "--quiet"},
 		[]string{c.Root.Dir, "/usr/bin/mkinitcpio", "-p", "linux"},
+		[]string{c.Root.Dir, "/usr/bin/cp", "/boot/vmlinuz-linux", "/boot/efi/EFI/archlinux/vmlinuz.efi"},
+		[]string{c.Root.Dir, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
 	}
 
 	for _, cmd := range cmds {
