@@ -673,6 +673,44 @@ func (c *Config) GenEtcHostname(kill chan bool) error {
 	return nil
 }
 
+// Generate /boot/efi/EFI/archlinux/refind_linux.conf.
+func (c *Config) GenRefind(kill chan bool) error {
+	f, err := os.OpenFile(
+		filepath.Join(c.EFI.Dir, "EFI", "archlinux", "refind_linux.conf"),
+		os.O_WRONLY|os.O_TRUNC,
+		os.FileMode(0755),
+	)
+	if err != nil {
+		return err
+	}
+	defer f.Close() // backup Close
+
+	extra := ""
+	if c.Root.FSType == Btrfs {
+		extra += " rootflags=subvol=" + btrfsActive
+	}
+	if c.Swap != nil {
+		extra += " resume=/dev/mapper/" + c.Swap.Name
+	}
+	options := `init=/usr/lib/systemd/systemd` +
+		` ro` +
+		` root=/dev/mapper/` + c.Root.Name +
+		` cryptdevice=/dev/disk/by-partlabel/` + c.Root.Name + `:` + c.Root.Name +
+		extra
+
+	contentsTemplate := `"Boot with defaults"  "%s"
+"Boot single user"    "%s single"
+`
+	if _, err := fmt.Fprintf(f, contentsTemplate, options, options); err != nil {
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Config) label(thing string) string {
 	return fmt.Sprintf("%s-%s", c.Name, thing)
 }
