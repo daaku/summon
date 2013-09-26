@@ -96,8 +96,8 @@ func main() {
 			Step{Do: sys.InstallFileSystem},
 			Step{Do: sys.VirtualFS.Mount, Defer: sys.VirtualFS.Umount},
 			Step{Do: sys.InstallSystem},
-			Step{Do: sys.PostInstall},
 			Step{Do: sys.GenEtcHostname},
+			Step{Do: sys.PostInstall},
 			Step{Do: sys.Passwd("root", userpass)},
 			Step{Do: sys.Root.Snapshot("as-installed")},
 		)
