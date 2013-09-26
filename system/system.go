@@ -566,14 +566,16 @@ func (c *Config) InstallSystem(kill chan bool) error {
 
 // Post install steps.
 func (c *Config) PostInstall(kill chan bool) error {
+	r := c.Root.Dir
 	cmds := [][]string{
-		[]string{c.Root.Dir, "/usr/bin/pacman-key", "--init"},
-		[]string{c.Root.Dir, "/usr/bin/pacman-key", "--populate", "archlinux"},
-		[]string{c.Root.Dir, "/usr/bin/locale-gen"},
-		[]string{c.Root.Dir, "/usr/bin/mandb", "--quiet"},
-		[]string{c.Root.Dir, "/usr/bin/mkinitcpio", "-p", "linux"},
-		[]string{c.Root.Dir, "/usr/bin/cp", "/boot/vmlinuz-linux", "/boot/efi/EFI/archlinux/vmlinuz.efi"},
-		[]string{c.Root.Dir, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
+		{r, "/usr/bin/pacman-key", "--init"},
+		{r, "/usr/bin/pacman-key", "--populate", "archlinux"},
+		{r, "/usr/bin/locale-gen"},
+		{r, "/usr/bin/mandb", "--quiet"},
+		{r, "/usr/bin/mkinitcpio", "-p", "linux"},
+		{r, "/usr/bin/cp", "/boot/vmlinuz-linux", "/boot/efi/EFI/archlinux/vmlinuz.efi"},
+		{r, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
+		{r, "/usr/bin/cp", "/boot/initramfs-linux.img", "/boot/efi/EFI/archlinux/initrd.img"},
 	}
 
 	for _, cmd := range cmds {
