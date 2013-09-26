@@ -667,13 +667,9 @@ func (c *Config) GenEtcHostname(kill chan bool) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close() // backup Close
+	defer f.Close()
 
 	if _, err := f.WriteString(c.Name + "\n"); err != nil {
-		return err
-	}
-
-	if err := f.Close(); err != nil {
 		return err
 	}
 	return nil
@@ -689,7 +685,7 @@ func (c *Config) GenRefind(kill chan bool) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close() // backup Close
+	defer f.Close()
 
 	extra := ""
 	if c.Root.FSType == Btrfs {
@@ -710,10 +706,6 @@ func (c *Config) GenRefind(kill chan bool) error {
 	if _, err := fmt.Fprintf(f, contentsTemplate, options, options); err != nil {
 		return err
 	}
-
-	if err := f.Close(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -727,7 +719,7 @@ func (c *Config) GenFstab(kill chan bool) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close() // backup Close
+	defer f.Close()
 
 	var lines [][]string
 	rootOptions := "noatime"
@@ -799,10 +791,6 @@ func (c *Config) GenFstab(kill chan bool) error {
 		if _, err := f.WriteString("\n"); err != nil {
 			return err
 		}
-	}
-
-	if err := f.Close(); err != nil {
-		return err
 	}
 	return nil
 }
