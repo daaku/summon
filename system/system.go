@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -648,6 +649,28 @@ func (c *Config) Backup(args []string) func(kill chan bool) error {
 		}
 		return nil
 	}
+}
+
+// Generate the hostname file.
+func (c *Config) GenEtcHostname(kill chan bool) error {
+	f, err := os.OpenFile(
+		filepath.Join(c.Root.Dir, "etc", "hostname"),
+		os.O_WRONLY|os.O_TRUNC,
+		os.FileMode(0644),
+	)
+	if err != nil {
+		return err
+	}
+	defer f.Close() // backup Close
+
+	if _, err := f.WriteString(c.Name + "\n"); err != nil {
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Config) label(thing string) string {
