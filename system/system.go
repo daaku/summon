@@ -50,7 +50,7 @@ func (d *EncryptedDisk) LuksFormat(kill chan bool) error {
 		"--use-random",
 		d.Device,
 	)
-	cmd.Stdin = bytes.NewBufferString(d.Password)
+	cmd.Stdin = strings.NewReader(d.Password)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (d *EncryptedDisk) LuksFormat(kill chan bool) error {
 // Opens the LUKS device.
 func (d *EncryptedDisk) LuksOpen(kill chan bool) error {
 	cmd := exec.Command("cryptsetup", "open", "--type", "luks", d.Device, d.Name)
-	cmd.Stdin = bytes.NewBufferString(d.Password)
+	cmd.Stdin = strings.NewReader(d.Password)
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -579,7 +579,7 @@ func (c *Config) PostInstall(kill chan bool) error {
 func (c *Config) Passwd(user, pass string) func(kill chan bool) error {
 	return func(kill chan bool) error {
 		cmd := exec.Command("chroot", c.Root.Dir, "/usr/bin/passwd", user)
-		cmd.Stdin = bytes.NewBufferString(pass + "\n" + pass + "\n")
+		cmd.Stdin = strings.NewReader(pass + "\n" + pass + "\n")
 		if err := run(cmd, kill); err != nil {
 			return err
 		}
