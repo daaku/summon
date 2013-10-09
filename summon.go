@@ -35,7 +35,7 @@ func main() {
 			Disk       string `goptions:"-d, --disk, obligatory, description='target disk'"`
 			User       string `goptions:"-u, --user, description='user to set password for'"`
 			Package    string `goptions:"-p, --package, description='package to install'"`
-			EnableSwap bool   `goptions:"--enable-swap, description='enable encrypted swap'"`
+			EnableSwap bool   `goptions:"--enable-swap, description='enable swap'"`
 			EnableOSX  bool   `goptions:"--enable-osx, description='create OS X partitions'"`
 			KeepGPT    bool   `goptions:"--keep-gpt, description='keep the existing GPT'"`
 		} `goptions:"create"`

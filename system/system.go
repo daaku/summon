@@ -237,7 +237,7 @@ func (d *EFIDisk) Umount(kill chan bool) error {
 }
 
 // Swap disk config.
-type SwapDisk struct {
+type EncryptedSwapDisk struct {
 	Name     string
 	Device   string
 	Mapper   string
@@ -245,7 +245,7 @@ type SwapDisk struct {
 }
 
 // Initializes the LUKS device.
-func (d *SwapDisk) LuksFormat(kill chan bool) error {
+func (d *EncryptedSwapDisk) LuksFormat(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -272,7 +272,7 @@ func (d *SwapDisk) LuksFormat(kill chan bool) error {
 }
 
 // Opens the LUKS device.
-func (d *SwapDisk) LuksOpen(kill chan bool) error {
+func (d *EncryptedSwapDisk) LuksOpen(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -296,7 +296,7 @@ func (d *SwapDisk) LuksOpen(kill chan bool) error {
 }
 
 // Read the key of the root partition.
-func (d *SwapDisk) key() (string, error) {
+func (d *EncryptedSwapDisk) key() (string, error) {
 	cmd := exec.Command("dmsetup", "--showkeys", "table", d.RootName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -310,7 +310,7 @@ func (d *SwapDisk) key() (string, error) {
 }
 
 // Closes the existing LUKS mapping.
-func (d *SwapDisk) LuksClose(kill chan bool) error {
+func (d *EncryptedSwapDisk) LuksClose(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -322,7 +322,7 @@ func (d *SwapDisk) LuksClose(kill chan bool) error {
 }
 
 // Create the Swap file system.
-func (d *SwapDisk) MakeFS(kill chan bool) error {
+func (d *EncryptedSwapDisk) MakeFS(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -335,7 +335,7 @@ func (d *SwapDisk) MakeFS(kill chan bool) error {
 }
 
 // Mount this swap.
-func (d *SwapDisk) Mount(kill chan bool) error {
+func (d *EncryptedSwapDisk) Mount(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -347,7 +347,7 @@ func (d *SwapDisk) Mount(kill chan bool) error {
 }
 
 // Umount this Swap.
-func (d *SwapDisk) Umount(kill chan bool) error {
+func (d *EncryptedSwapDisk) Umount(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
@@ -399,7 +399,7 @@ type Config struct {
 	Package   string
 	Root      *EncryptedDisk
 	EFI       *EFIDisk
-	Swap      *SwapDisk
+	Swap      *EncryptedSwapDisk
 	VirtualFS *VirtualFS
 	EnableOSX bool
 }
@@ -431,7 +431,7 @@ func New(name string) *Config {
 // Enable a swap disk.
 func (c *Config) EnableSwap() {
 	name := fmt.Sprintf("%s-swap", c.Name)
-	c.Swap = &SwapDisk{
+	c.Swap = &EncryptedSwapDisk{
 		Name:     name,
 		RootName: c.Root.Name,
 		Device:   path.Join("/dev/disk/by-partlabel", name),
