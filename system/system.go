@@ -30,7 +30,7 @@ const (
 )
 
 // Defines a luks encrypted disk.
-type EncryptedDisk struct {
+type RootDisk struct {
 	Name     string
 	FSType   FSType
 	Device   string
@@ -40,7 +40,11 @@ type EncryptedDisk struct {
 }
 
 // Initializes the LUKS device.
-func (d *EncryptedDisk) LuksFormat(kill chan bool) error {
+func (d *RootDisk) LuksFormat(kill chan bool) error {
+	if d.Password == "" {
+		return nil
+	}
+
 	cmd := exec.Command(
 		"cryptsetup", "luksFormat",
 		"--cipher", "aes-xts-plain64",
@@ -58,7 +62,11 @@ func (d *EncryptedDisk) LuksFormat(kill chan bool) error {
 }
 
 // Opens the LUKS device.
-func (d *EncryptedDisk) LuksOpen(kill chan bool) error {
+func (d *RootDisk) LuksOpen(kill chan bool) error {
+	if d.Password == "" {
+		return nil
+	}
+
 	cmd := exec.Command("cryptsetup", "open", "--type", "luks", d.Device, d.Name)
 	cmd.Stdin = strings.NewReader(d.Password)
 	if err := run(cmd, kill); err != nil {
@@ -68,7 +76,11 @@ func (d *EncryptedDisk) LuksOpen(kill chan bool) error {
 }
 
 // Closes the existing LUKS mapping.
-func (d *EncryptedDisk) LuksClose(kill chan bool) error {
+func (d *RootDisk) LuksClose(kill chan bool) error {
+	if d.Password == "" {
+		return nil
+	}
+
 	cmd := exec.Command("cryptsetup", "close", d.Name)
 	if err := run(cmd, kill); err != nil {
 		return err
@@ -77,7 +89,7 @@ func (d *EncryptedDisk) LuksClose(kill chan bool) error {
 }
 
 // Create the File System.
-func (d *EncryptedDisk) MakeFS(kill chan bool) error {
+func (d *RootDisk) MakeFS(kill chan bool) error {
 	var bin string
 	if d.FSType == Btrfs {
 		bin = "mkfs.btrfs"
@@ -89,13 +101,13 @@ func (d *EncryptedDisk) MakeFS(kill chan bool) error {
 		return fmt.Errorf("unknown filesystem type: %s", string(d.FSType))
 	}
 
-	if err := run(exec.Command(bin, "-L", d.Name, d.Mapper), kill); err != nil {
+	if err := run(exec.Command(bin, "-L", d.Name, d.fsDev()), kill); err != nil {
 		return err
 	}
 
 	// for btrfs we ensure creation of an active subvolume
 	if d.FSType == Btrfs {
-		dir, err := mountBtrfsRoot(d.Mapper, kill)
+		dir, err := mountBtrfsRoot(d.fsDev(), kill)
 		if err != nil {
 			return err
 		}
@@ -113,7 +125,7 @@ func (d *EncryptedDisk) MakeFS(kill chan bool) error {
 }
 
 // Mount the File System.
-func (d *EncryptedDisk) Mount(kill chan bool) error {
+func (d *RootDisk) Mount(kill chan bool) error {
 	err := os.MkdirAll(d.Dir, os.FileMode(755))
 	if err != nil {
 		return err
@@ -128,11 +140,12 @@ func (d *EncryptedDisk) Mount(kill chan bool) error {
 	if d.FSType == Btrfs {
 		options = fmt.Sprintf("%s,compress=lzo,subvol=%s", options, btrfsActive)
 	}
+
 	cmd := exec.Command(
 		"mount",
 		"-t", string(d.FSType),
 		"-o", options,
-		d.Mapper,
+		d.fsDev(),
 		d.Dir,
 	)
 	if err := run(cmd, kill); err != nil {
@@ -141,9 +154,17 @@ func (d *EncryptedDisk) Mount(kill chan bool) error {
 	return nil
 }
 
+// Get the device path where the filesystem resides.
+func (d *RootDisk) fsDev() string {
+	if d.Password == "" {
+		return d.Device
+	}
+	return d.Mapper
+}
+
 // Identify the FSType.
-func (d *EncryptedDisk) identifyFSType() (FSType, error) {
-	cmd := exec.Command("lsblk", "--noheadings", "--output", "fstype", d.Mapper)
+func (d *RootDisk) identifyFSType() (FSType, error) {
+	cmd := exec.Command("lsblk", "--noheadings", "--output", "fstype", d.fsDev())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return FSType(""), cmderr.New(cmd, out, err)
@@ -152,7 +173,7 @@ func (d *EncryptedDisk) identifyFSType() (FSType, error) {
 }
 
 // Unmount the File System.
-func (d *EncryptedDisk) Umount(kill chan bool) error {
+func (d *RootDisk) Umount(kill chan bool) error {
 	cmd := exec.Command("umount", d.Dir)
 	if err := run(cmd, kill); err != nil {
 		return err
@@ -165,13 +186,13 @@ func (d *EncryptedDisk) Umount(kill chan bool) error {
 }
 
 // Create a snapshot, if the target File System supports this.
-func (d *EncryptedDisk) Snapshot(name string) func(kill chan bool) error {
+func (d *RootDisk) Snapshot(name string) func(kill chan bool) error {
 	return func(kill chan bool) error {
 		if d.FSType != Btrfs {
 			return nil
 		}
 
-		dir, err := mountBtrfsRoot(d.Mapper, kill)
+		dir, err := mountBtrfsRoot(d.fsDev(), kill)
 		if err != nil {
 			return err
 		}
@@ -237,16 +258,29 @@ func (d *EFIDisk) Umount(kill chan bool) error {
 }
 
 // Swap disk config.
-type EncryptedSwapDisk struct {
+type SwapDisk struct {
 	Name     string
 	Device   string
 	Mapper   string
 	RootName string
+	Encrypt  bool
+}
+
+// Get the device path where the swap resides.
+func (d *SwapDisk) fsDev() string {
+	if d.Encrypt {
+		return d.Mapper
+	}
+	return d.Device
 }
 
 // Initializes the LUKS device.
-func (d *EncryptedSwapDisk) LuksFormat(kill chan bool) error {
+func (d *SwapDisk) LuksFormat(kill chan bool) error {
 	if d == nil {
+		return nil
+	}
+
+	if !d.Encrypt {
 		return nil
 	}
 
@@ -272,8 +306,12 @@ func (d *EncryptedSwapDisk) LuksFormat(kill chan bool) error {
 }
 
 // Opens the LUKS device.
-func (d *EncryptedSwapDisk) LuksOpen(kill chan bool) error {
+func (d *SwapDisk) LuksOpen(kill chan bool) error {
 	if d == nil {
+		return nil
+	}
+
+	if !d.Encrypt {
 		return nil
 	}
 
@@ -296,7 +334,7 @@ func (d *EncryptedSwapDisk) LuksOpen(kill chan bool) error {
 }
 
 // Read the key of the root partition.
-func (d *EncryptedSwapDisk) key() (string, error) {
+func (d *SwapDisk) key() (string, error) {
 	cmd := exec.Command("dmsetup", "--showkeys", "table", d.RootName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -310,10 +348,15 @@ func (d *EncryptedSwapDisk) key() (string, error) {
 }
 
 // Closes the existing LUKS mapping.
-func (d *EncryptedSwapDisk) LuksClose(kill chan bool) error {
+func (d *SwapDisk) LuksClose(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
+
+	if !d.Encrypt {
+		return nil
+	}
+
 	cmd := exec.Command("cryptsetup", "close", d.Name)
 	if err := run(cmd, kill); err != nil {
 		return err
@@ -322,12 +365,12 @@ func (d *EncryptedSwapDisk) LuksClose(kill chan bool) error {
 }
 
 // Create the Swap file system.
-func (d *EncryptedSwapDisk) MakeFS(kill chan bool) error {
+func (d *SwapDisk) MakeFS(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
 	label := fmt.Sprintf("%s-swap", d.Name)
-	cmd := exec.Command("mkswap", "--label", label, d.Mapper)
+	cmd := exec.Command("mkswap", "--label", label, d.fsDev())
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -335,11 +378,11 @@ func (d *EncryptedSwapDisk) MakeFS(kill chan bool) error {
 }
 
 // Mount this swap.
-func (d *EncryptedSwapDisk) Mount(kill chan bool) error {
+func (d *SwapDisk) Mount(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
-	cmd := exec.Command("swapon", d.Mapper)
+	cmd := exec.Command("swapon", d.fsDev())
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -347,11 +390,11 @@ func (d *EncryptedSwapDisk) Mount(kill chan bool) error {
 }
 
 // Umount this Swap.
-func (d *EncryptedSwapDisk) Umount(kill chan bool) error {
+func (d *SwapDisk) Umount(kill chan bool) error {
 	if d == nil {
 		return nil
 	}
-	cmd := exec.Command("swapoff", d.Mapper)
+	cmd := exec.Command("swapoff", d.fsDev())
 	if err := run(cmd, kill); err != nil {
 		return err
 	}
@@ -397,9 +440,9 @@ type Config struct {
 	Name      string
 	Disk      string
 	Package   string
-	Root      *EncryptedDisk
+	Root      *RootDisk
 	EFI       *EFIDisk
-	Swap      *EncryptedSwapDisk
+	Swap      *SwapDisk
 	VirtualFS *VirtualFS
 	EnableOSX bool
 }
@@ -411,7 +454,7 @@ func New(name string) *Config {
 	dir := path.Join("/mnt", name)
 	return &Config{
 		Name: name,
-		Root: &EncryptedDisk{
+		Root: &RootDisk{
 			Name:   rootName,
 			Device: path.Join("/dev/disk/by-partlabel", rootName),
 			Mapper: path.Join("/dev/mapper", rootName),
@@ -429,13 +472,14 @@ func New(name string) *Config {
 }
 
 // Enable a swap disk.
-func (c *Config) EnableSwap() {
+func (c *Config) EnableSwap(encrypt bool) {
 	name := fmt.Sprintf("%s-swap", c.Name)
-	c.Swap = &EncryptedSwapDisk{
+	c.Swap = &SwapDisk{
 		Name:     name,
 		RootName: c.Root.Name,
 		Device:   path.Join("/dev/disk/by-partlabel", name),
 		Mapper:   path.Join("/dev/mapper", name),
+		Encrypt:  encrypt,
 	}
 }
 
@@ -671,17 +715,19 @@ func (c *Config) GenRefind(kill chan bool) error {
 	defer f.Close()
 
 	extra := ""
+	if c.Root.Password != "" {
+		extra += " cryptdevice=/dev/disk/by-partlabel/" + c.Root.Name + `:` + c.Root.Name
+	}
 	if c.Root.FSType == Btrfs {
 		extra += " rootflags=subvol=" + btrfsActive
 	}
 	if c.Swap != nil {
-		extra += " resume=/dev/mapper/" + c.Swap.Name
+		extra += " resume=" + c.Swap.fsDev()
 	}
 	options := `init=/usr/lib/systemd/systemd` +
 		` ro` +
 		` plymouth.enable=0` +
-		` root=/dev/mapper/` + c.Root.Name +
-		` cryptdevice=/dev/disk/by-partlabel/` + c.Root.Name + `:` + c.Root.Name +
+		` root=` + c.Root.fsDev() +
 		extra
 
 	contentsTemplate := `"Boot with defaults"  "%s"
@@ -716,7 +762,7 @@ func (c *Config) GenFstab(kill chan bool) error {
 	lines = append(
 		lines,
 		[]string{
-			filepath.Join("/dev/mapper", c.Root.Name),
+			c.Root.fsDev(),
 			"/",
 			string(c.Root.FSType),
 			rootOptions,
@@ -728,7 +774,7 @@ func (c *Config) GenFstab(kill chan bool) error {
 		lines = append(
 			lines,
 			[]string{
-				filepath.Join("/dev/mapper", c.Root.Name),
+				c.Root.fsDev(),
 				"/mnt/root",
 				string(Btrfs),
 				"noatime,compress=lzo",
@@ -741,7 +787,7 @@ func (c *Config) GenFstab(kill chan bool) error {
 		lines = append(
 			lines,
 			[]string{
-				filepath.Join("/dev/mapper", c.Swap.Name),
+				c.Swap.fsDev(),
 				"none",
 				"swap",
 				"defaults",

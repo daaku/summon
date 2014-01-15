@@ -31,13 +31,14 @@ func main() {
 
 		goptions.Verbs
 		Create struct {
-			FSType     string `goptions:"-f, --fs, obligatory, description='file system'"`
-			Disk       string `goptions:"-d, --disk, obligatory, description='target disk'"`
-			User       string `goptions:"-u, --user, description='user to set password for'"`
-			Package    string `goptions:"-p, --package, description='package to install'"`
-			EnableSwap bool   `goptions:"--enable-swap, description='enable swap'"`
-			EnableOSX  bool   `goptions:"--enable-osx, description='create OS X partitions'"`
-			KeepGPT    bool   `goptions:"--keep-gpt, description='keep the existing GPT'"`
+			FSType      string `goptions:"-f, --fs, obligatory, description='file system'"`
+			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
+			User        string `goptions:"-u, --user, description='user to set password for'"`
+			Package     string `goptions:"-p, --package, description='package to install'"`
+			EnableCrypt bool   `goptions:"--enable-crypt, description='enable encrypted disk'"`
+			EnableSwap  bool   `goptions:"--enable-swap, description='enable swap'"`
+			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
+			KeepGPT     bool   `goptions:"--keep-gpt, description='keep the existing GPT'"`
 		} `goptions:"create"`
 		Backup struct {
 			goptions.Remainder
@@ -69,12 +70,14 @@ func main() {
 		sys.Package = options.Create.Package
 		sys.Root.FSType = system.FSType(options.Create.FSType)
 		if options.Create.EnableSwap {
-			sys.EnableSwap()
+			sys.EnableSwap(options.Create.EnableCrypt)
 		}
-		sys.Root.Password = termios.PasswordConfirm(
-			fmt.Sprintf("%s disk password: ", sys.Name),
-			fmt.Sprintf("confirm %s disk password: ", sys.Name),
-		)
+		if options.Create.EnableCrypt {
+			sys.Root.Password = termios.PasswordConfirm(
+				fmt.Sprintf("%s disk password: ", sys.Name),
+				fmt.Sprintf("confirm %s disk password: ", sys.Name),
+			)
+		}
 		userpass := termios.PasswordConfirm(
 			fmt.Sprintf("%s user password: ", sys.Name),
 			fmt.Sprintf("confirm %s user password: ", sys.Name),
