@@ -505,7 +505,7 @@ func (c *Config) GptSetup(kill chan bool) error {
 	}
 
 	var args []string
-	efisize := "+64M"
+	efisize := "+100M"
 	if c.EnableOSX {
 		efisize = "+256M"
 	}
