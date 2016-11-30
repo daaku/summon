@@ -412,7 +412,7 @@ type VirtualFS struct {
 func (f *VirtualFS) Mount(kill chan bool) error {
 	for _, p := range virtualFSs {
 		cmd := exec.Command(
-			"mount", "--bind",
+			"mount", "--rbind",
 			path.Join("/", p),
 			path.Join(f.Dir, p),
 		)
