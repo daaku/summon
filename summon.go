@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bitbucket.org/taruti/termios"
 	"fmt"
-	"github.com/daaku/summon/system"
-	"github.com/voxelbrain/goptions"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/daaku/summon/system"
+	"github.com/segmentio/go-prompt"
+	"github.com/voxelbrain/goptions"
 )
 
 type Step struct {
@@ -73,15 +74,9 @@ func main() {
 			sys.EnableSwap(options.Create.EnableCrypt)
 		}
 		if options.Create.EnableCrypt {
-			sys.Root.Password = termios.PasswordConfirm(
-				fmt.Sprintf("%s disk password: ", sys.Name),
-				fmt.Sprintf("confirm %s disk password: ", sys.Name),
-			)
+			sys.Root.Password = passwordConfirm("%s disk password: ", sys.Name)
 		}
-		userpass := termios.PasswordConfirm(
-			fmt.Sprintf("%s user password: ", sys.Name),
-			fmt.Sprintf("confirm %s user password: ", sys.Name),
-		)
+		userpass := passwordConfirm("%s user password: ", sys.Name)
 
 		if !options.Create.KeepGPT {
 			steps = append(steps, Step{Do: sys.GptSetup})
@@ -136,9 +131,7 @@ func main() {
 }
 
 func exec(sys *system.Config, steps ...Step) []Step {
-	sys.Root.Password = termios.Password(
-		fmt.Sprintf("%s disk password: ", sys.Name),
-	)
+	sys.Root.Password = prompt.Password("%s disk password: ", sys.Name)
 	r := []Step{
 		Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
 		Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
@@ -174,4 +167,14 @@ func run(steps []Step) error {
 		return err
 	}
 	panic("not reached")
+}
+
+func passwordConfirm(str string, args ...interface{}) string {
+	for {
+		original := prompt.Password(str, args...)
+		confirm := prompt.Password("confirm "+str, args...)
+		if original == confirm {
+			return original
+		}
+	}
 }
