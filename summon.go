@@ -71,9 +71,7 @@ func Serial(name string, tasks ...Task) Task {
 		Defer: func(ctx context.Context) error {
 			var multiErrors []error
 			for _, f := range defers {
-				if err := f(ctx); err != nil {
-					multiErrors = append(multiErrors, err)
-				}
+				multiErrors = append(multiErrors, f(ctx))
 			}
 			return errgroup.NewMultiError(multiErrors...)
 		},
