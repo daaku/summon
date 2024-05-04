@@ -1,0 +1,24 @@
+
+[TestShellf/lone_command - 1]
+true
+[]string{}
+nil
+---
+
+[TestShellf/fixed_args - 1]
+echo
+[]string{"hello", "world"}
+nil
+---
+
+[TestShellf/arg_with_space - 1]
+echo
+[]string{"hello world"}
+nil
+---
+
+[TestShellf/path_quoting - 1]
+echo
+[]string{"/home/naitik shah/foo/bar"}
+nil
+---

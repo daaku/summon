@@ -8,9 +8,29 @@ package summon
 
 import (
 	"context"
+	"fmt"
+	"os/exec"
 
 	"github.com/daaku/errgroup"
+	"github.com/kballard/go-shellquote"
 )
+
+func Shellf(format string, a ...any) (string, []string, error) {
+	c := fmt.Sprintf(format, a...)
+	parts, err := shellquote.Split(c)
+	if err != nil {
+		return "", nil, err
+	}
+	return parts[0], parts[1:], nil
+}
+
+func MustCmdf(ctx context.Context, format string, a ...any) *exec.Cmd {
+	name, args, err := Shellf(format, a...)
+	if err != nil {
+		panic(err)
+	}
+	return exec.CommandContext(ctx, name, args...)
+}
 
 type Task struct {
 	Name      string
