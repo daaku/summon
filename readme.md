@@ -1,0 +1,7 @@
+- op
+  - ctx aware
+  - optional undo op
+  - optionally interactive (globally single threaded)
+- easy unix command to op
+  - args handling
+  - stdin/stdout helpers

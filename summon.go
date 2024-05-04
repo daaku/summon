@@ -1,180 +1,103 @@
-package main
+package summon
+
+// "system" layer
+// "config" layer + manifest
+// "data" layer + ignores + backups
+// "home" mount
+// "pkgrepo" mount
 
 import (
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+	"context"
 
-	"github.com/daaku/summon/system"
-	"github.com/segmentio/go-prompt"
-	"github.com/voxelbrain/goptions"
+	"github.com/daaku/errgroup"
 )
 
-type Step struct {
-	Do    func(kill chan bool) error
-	Defer func(kill chan bool) error
+type Task struct {
+	Name      string
+	Do, Defer func(context.Context) error
 }
 
-func (s Step) LoggedDefer(kill chan bool) {
-	if s.Defer == nil {
-		return
-	}
-	if err := s.Defer(kill); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-	}
-}
-
-func main() {
-	options := struct {
-		Name string        `goptions:"-n, --name, obligatory, description='system name'"`
-		Help goptions.Help `goptions:"-h, --help, description='show this help'"`
-
-		goptions.Verbs
-		Create struct {
-			FSType      string `goptions:"-f, --fs, obligatory, description='file system'"`
-			Disk        string `goptions:"-d, --disk, obligatory, description='target disk'"`
-			User        string `goptions:"-u, --user, description='user to set password for'"`
-			Package     string `goptions:"-p, --package, description='package to install'"`
-			EnableCrypt bool   `goptions:"--enable-crypt, description='enable encrypted disk'"`
-			EnableSwap  bool   `goptions:"--enable-swap, description='enable swap'"`
-			EnableOSX   bool   `goptions:"--enable-osx, description='create OS X partitions'"`
-			KeepGPT     bool   `goptions:"--keep-gpt, description='keep the existing GPT'"`
-		} `goptions:"create"`
-		Backup struct {
-			goptions.Remainder
-		} `goptions:"backup"`
-		Exec struct {
-			goptions.Remainder
-		} `goptions:"exec"`
-		NSpawn struct {
-			goptions.Remainder
-		} `goptions:"nspawn"`
-	}{}
-	goptions.ParseAndFail(&options)
-
-	sys := system.New(options.Name)
-	var steps []Step
-
-	switch options.Verbs {
-	case "":
-		fmt.Fprintln(os.Stderr, "a verb must be specified")
-		goptions.PrintHelp()
-		os.Exit(2)
-	default:
-		fmt.Fprintf(os.Stderr, "invalid verb: %v\n", options.Verbs)
-		goptions.PrintHelp()
-		os.Exit(2)
-	case "create":
-		sys.EnableOSX = options.Create.EnableOSX
-		sys.Disk = options.Create.Disk
-		sys.Package = options.Create.Package
-		sys.Root.FSType = system.FSType(options.Create.FSType)
-		if options.Create.EnableSwap {
-			sys.EnableSwap(options.Create.EnableCrypt)
-		}
-		if options.Create.EnableCrypt {
-			sys.Root.Password = passwordConfirm("%s disk password: ", sys.Name)
-		}
-		userpass := passwordConfirm("%s user password: ", sys.Name)
-
-		if !options.Create.KeepGPT {
-			steps = append(steps, Step{Do: sys.GptSetup})
-		}
-
-		steps = append(
-			steps,
-			Step{Do: sys.Root.LuksFormat},
-			Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
-			Step{Do: sys.Root.MakeFS},
-			Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
-			Step{Do: sys.Swap.LuksFormat},
-			Step{Do: sys.Swap.LuksOpen, Defer: sys.Swap.LuksClose},
-			Step{Do: sys.Swap.MakeFS},
-			Step{Do: sys.EFI.MakeFS},
-			Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
-			Step{Do: sys.InstallFileSystem},
-			Step{Do: sys.VirtualFS.Mount, Defer: sys.VirtualFS.Umount},
-			Step{Do: sys.InstallSystem},
-			Step{Do: sys.GenEtcHostname},
-			Step{Do: sys.GenRefind},
-			Step{Do: sys.GenFstab},
-			Step{Do: sys.PostInstall},
-			Step{Do: sys.Passwd("root", userpass)},
-			Step{Do: sys.Root.Snapshot("as-installed")},
-		)
-		if options.Create.User != "" {
-			steps = append(steps, Step{Do: sys.Passwd(options.Create.User, userpass)})
-		}
-	case "exec":
-		steps = exec(sys, Step{Do: sys.Exec(options.Exec.Remainder)})
-	case "backup":
-		steps = exec(
-			sys,
-			Step{Do: sys.Backup(options.Backup.Remainder)},
-			Step{Do: sys.Root.Snapshot("backup")},
-		)
-	case "nspawn":
-		args := []string{"systemd-nspawn", "--directory", sys.Root.Dir}
-		if len(options.NSpawn.Remainder) == 0 {
-			args = append(args, "/usr/bin/bash", "--login")
-		} else {
-			args = append(args, options.NSpawn.Remainder...)
-		}
-		steps = exec(sys, Step{Do: sys.Exec(args)})
-	}
-
-	if err := run(steps); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(3)
-	}
-}
-
-func exec(sys *system.Config, steps ...Step) []Step {
-	sys.Root.Password = prompt.Password("%s disk password: ", sys.Name)
-	r := []Step{
-		Step{Do: sys.Root.LuksOpen, Defer: sys.Root.LuksClose},
-		Step{Do: sys.Root.Mount, Defer: sys.Root.Umount},
-		Step{Do: sys.EFI.Mount, Defer: sys.EFI.Umount},
-	}
-	return append(r, steps...)
-}
-
-func run(steps []Step) error {
-	ec := make(chan error)
-	kill := make(chan bool)
-	deferKill := make(chan bool)
-
-	go func() {
-		ec <- func() error {
-			for _, step := range steps {
-				if err := step.Do(kill); err != nil {
-					return err
+func Parallel(name string, tasks ...Task) Task {
+	defers := []func(context.Context) error{}
+	return Task{
+		Name: name,
+		Do: func(ctx context.Context) error {
+			var eg errgroup.Group
+			for _, t := range tasks {
+				if t.Do != nil {
+					eg.Add(1)
+					go func() {
+						defer eg.Done()
+						eg.Error(t.Do(ctx))
+					}()
 				}
-				defer step.LoggedDefer(deferKill)
+				if t.Defer != nil {
+					defers = append(defers, t.Defer)
+				}
+			}
+			return eg.Wait()
+		},
+		Defer: func(ctx context.Context) error {
+			var eg errgroup.Group
+			eg.Add(len(defers))
+			for _, f := range defers {
+				go func() {
+					defer eg.Done()
+					eg.Error(f(ctx))
+				}()
+			}
+			return eg.Wait()
+		},
+	}
+}
+
+func Serial(name string, tasks ...Task) Task {
+	defers := []func(context.Context) error{}
+	return Task{
+		Name: name,
+		Do: func(ctx context.Context) error {
+			for _, t := range tasks {
+				if t.Do != nil {
+					if err := t.Do(ctx); err != nil {
+						return err
+					}
+				}
+				if t.Defer != nil {
+					defers = append(defers, t.Defer)
+				}
 			}
 			return nil
-		}()
-	}()
-
-	sig := make(chan os.Signal, 2)
-	signal.Notify(sig, syscall.SIGINT)
-	select {
-	case <-sig:
-		close(kill)
-		return <-ec
-	case err := <-ec:
-		return err
+		},
+		Defer: func(ctx context.Context) error {
+			var multiErrors []error
+			for _, f := range defers {
+				if err := f(ctx); err != nil {
+					multiErrors = append(multiErrors, err)
+				}
+			}
+			return errgroup.NewMultiError(multiErrors...)
+		},
 	}
-	panic("not reached")
 }
 
-func passwordConfirm(str string, args ...interface{}) string {
-	for {
-		original := prompt.Password(str, args...)
-		confirm := prompt.Password("confirm "+str, args...)
-		if original == confirm {
-			return original
+func Run(ctx context.Context, t Task) error {
+	if t.Do != nil {
+		if err := t.Do(ctx); err != nil {
+			return err
 		}
 	}
+	if t.Defer != nil {
+		if err := t.Defer(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var CheckInternet = Task{
+	Name: "Check Internet",
+	Do: func(ctx context.Context) error {
+		// TODO
+		return nil
+	},
 }

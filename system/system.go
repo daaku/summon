@@ -4,15 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/daaku/go.cmderr"
 )
 
 var errNoDiskSpecified = errors.New("no disk specified")
@@ -167,7 +164,7 @@ func (d *RootDisk) identifyFSType() (FSType, error) {
 	cmd := exec.Command("lsblk", "--noheadings", "--output", "fstype", d.fsDev())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return FSType(""), cmderr.New(cmd, out, err)
+		return FSType(""), fmt.Errorf("error running command: %q: %v\n%s", cmd, err, out)
 	}
 	return FSType(string(bytes.TrimSpace(out))), nil
 }
@@ -689,7 +686,7 @@ func (c *Config) GenEtcHostname(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.Root.Dir, "etc", "hostname"),
 		os.O_WRONLY|os.O_CREATE,
-		os.FileMode(0644),
+		os.FileMode(0o644),
 	)
 	if err != nil {
 		return err
@@ -707,7 +704,7 @@ func (c *Config) GenRefind(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.EFI.Dir, "EFI", "archlinux", "refind_linux.conf"),
 		os.O_WRONLY|os.O_CREATE,
-		os.FileMode(0755),
+		os.FileMode(0o755),
 	)
 	if err != nil {
 		return err
@@ -744,7 +741,7 @@ func (c *Config) GenFstab(kill chan bool) error {
 	f, err := os.OpenFile(
 		filepath.Join(c.Root.Dir, "etc", "fstab"),
 		os.O_WRONLY|os.O_CREATE,
-		os.FileMode(0755),
+		os.FileMode(0o755),
 	)
 	if err != nil {
 		return err
@@ -830,7 +827,7 @@ func (c *Config) label(thing string) string {
 }
 
 func mountBtrfsRoot(device string, kill chan bool) (string, error) {
-	dir, err := ioutil.TempDir("", path.Base(device))
+	dir, err := os.MkdirTemp("", path.Base(device))
 	if err != nil {
 		return "", err
 	}
@@ -876,7 +873,7 @@ func run(cmd *exec.Cmd, kill chan bool) error {
 	ec := make(chan error)
 	go func() {
 		if err := cmd.Wait(); err != nil {
-			ec <- cmderr.New(cmd, b.Bytes(), err)
+			ec <- fmt.Errorf("error running command: %q: %v\n%s", cmd, err, b.Bytes())
 			return
 		}
 		ec <- nil
