@@ -6,6 +6,15 @@ package summon
 // "home" mount
 // "pkgrepo" mount
 
+// asgard
+// - no encrypted disks
+// - no unlocked home
+// boe
+// - luks encrypted root
+// - bootable live backup
+// marvin
+// - encrypted home
+
 import (
 	"context"
 	"fmt"
@@ -30,6 +39,21 @@ func MustCmdf(ctx context.Context, format string, a ...any) *exec.Cmd {
 		panic(err)
 	}
 	return exec.CommandContext(ctx, name, args...)
+}
+
+func VerboseRun(cmd *exec.Cmd) error {
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("error running command: %q: %v\n%s", cmd, err, out)
+	}
+	return nil
+}
+
+func Runf(ctx context.Context, format string, a ...any) error {
+	name, args, err := Shellf(format, a...)
+	if err != nil {
+		return err
+	}
+	return VerboseRun(exec.CommandContext(ctx, name, args...))
 }
 
 type Task struct {

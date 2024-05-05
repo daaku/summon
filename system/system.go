@@ -2,6 +2,7 @@ package system
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,176 +11,133 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/daaku/errgroup"
+	"github.com/daaku/summon"
 )
 
-var errNoDiskSpecified = errors.New("no disk specified")
-
-// File System type.
-type FSType string
-
-const (
-	Ext4  = FSType("ext4")
-	Btrfs = FSType("btrfs")
-	Vfat  = FSType("vfat")
-
-	tsFormat    = "2006-01-02_15-04"
-	btrfsActive = "__active"
-)
-
-// Defines a luks encrypted disk.
-type RootDisk struct {
-	Name     string
-	FSType   FSType
+type LuksFormat struct {
 	Device   string
 	Password string
-	Mapper   string
-	Dir      string
 }
 
-// Initializes the LUKS device.
-func (d *RootDisk) LuksFormat(kill chan bool) error {
-	if d.Password == "" {
-		return nil
-	}
-
-	cmd := exec.Command(
-		"cryptsetup", "luksFormat",
-		"--cipher", "aes-xts-plain64",
-		"--key-size", "512",
-		"--hash", "sha512",
-		"--iter-time", "5000",
-		"--use-random",
-		d.Device,
-	)
-	cmd.Stdin = strings.NewReader(d.Password)
-	if err := run(cmd, kill); err != nil {
-		return err
-	}
-	return nil
+func (l LuksFormat) Task() (summon.Task, error) {
+	return summon.Task{
+		Name: fmt.Sprintf("Luks Format: %s", l.Device),
+		Do: func(ctx context.Context) error {
+			cmd := summon.MustCmdf(ctx, `
+				cryptsetup luksFormat
+					--cipher aes-xts-plain64
+					--key-size 512
+					--hash sha512
+					--iter-time 5000
+					--use-random
+					%q
+				`, l.Device)
+			cmd.Stdin = strings.NewReader(l.Password)
+			return summon.VerboseRun(cmd)
+		},
+	}, nil
 }
 
-// Opens the LUKS device.
-func (d *RootDisk) LuksOpen(kill chan bool) error {
-	if d.Password == "" {
-		return nil
-	}
-
-	cmd := exec.Command("cryptsetup", "open", "--type", "luks", d.Device, d.Name)
-	cmd.Stdin = strings.NewReader(d.Password)
-	if err := run(cmd, kill); err != nil {
-		return err
-	}
-	return nil
+type LuksOpenClose struct {
+	Device   string
+	Name     string
+	Password string
 }
 
-// Closes the existing LUKS mapping.
-func (d *RootDisk) LuksClose(kill chan bool) error {
-	if d.Password == "" {
-		return nil
-	}
-
-	cmd := exec.Command("cryptsetup", "close", d.Name)
-	if err := run(cmd, kill); err != nil {
-		return err
-	}
-	return nil
+func (l LuksOpenClose) Task() (summon.Task, error) {
+	return summon.Task{
+		Name: fmt.Sprintf("Luks Setup: %s", l.Device),
+		Do: func(ctx context.Context) error {
+			cmd := summon.MustCmdf(ctx, "cryptsetup open --type luks %q %q", l.Device, l.Name)
+			cmd.Stdin = strings.NewReader(l.Password)
+			return summon.VerboseRun(cmd)
+		},
+		Defer: func(ctx context.Context) error {
+			return summon.Runf(ctx, "cryptsetup close %q", l.Name)
+		},
+	}, nil
 }
 
-// Create the File System.
-func (d *RootDisk) MakeFS(kill chan bool) error {
-	var bin string
-	if d.FSType == Btrfs {
-		bin = "mkfs.btrfs"
-	}
-	if d.FSType == Ext4 {
-		bin = "mkfs.ext4"
-	}
-	if bin == "" {
-		return fmt.Errorf("unknown filesystem type: %s", string(d.FSType))
-	}
-
-	if err := run(exec.Command(bin, "-L", d.Name, d.fsDev()), kill); err != nil {
-		return err
-	}
-
-	// for btrfs we ensure creation of an active subvolume
-	if d.FSType == Btrfs {
-		dir, err := mountBtrfsRoot(d.fsDev(), kill)
-		if err != nil {
-			return err
-		}
-		defer umountBtrfsRoot(dir, kill)
-
-		activedir := path.Join(dir, btrfsActive)
-		scmd := exec.Command("btrfs", "subvolume", "create", activedir)
-		if err := run(scmd, kill); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return nil
+type Mount struct {
+	Device    string
+	MountPath string
+	Options   string
 }
 
-// Mount the File System.
-func (d *RootDisk) Mount(kill chan bool) error {
-	err := os.MkdirAll(d.Dir, os.FileMode(755))
+func (m Mount) Task() (summon.Task, error) {
+	rmmdir := false
+	return summon.Task{
+		Name: fmt.Sprintf("Mount %q", m.MountPath),
+		Do: func(ctx context.Context) error {
+			if err := os.MkdirAll(m.MountPath, 0o700); err == nil {
+				rmmdir = true
+			}
+			return summon.Runf(ctx, "mount -o %q %q %q", m.Options, m.Device, m.MountPath)
+		},
+		Defer: func(ctx context.Context) error {
+			me := []error{summon.Runf(ctx, "umount %q", m.MountPath)}
+			if rmmdir {
+				me = append(me, os.Remove(m.MountPath))
+			}
+			return errgroup.NewMultiError(me...)
+		},
+	}, nil
+}
+
+type MakeFS struct {
+	Device string
+	Type   string
+	Label  string
+}
+
+// MkFS makes file systems.
+func (m MakeFS) Task() (summon.Task, error) {
+	bin := "mkfs." + m.Type
+	return summon.Task{
+		Name: fmt.Sprintf("File System: %s of type %s on %s", m.Label, m.Type, m.Device),
+		Do: func(ctx context.Context) error {
+			return summon.Runf(ctx, "%q -L %q %q", bin, m.Label, m.Device)
+		},
+	}, nil
+}
+
+type MakeBtrfsSubvolume struct {
+	Device string
+	Name   string
+}
+
+func (m MakeBtrfsSubvolume) Task() (summon.Task, error) {
+	tmpdir, err := os.MkdirTemp("", m.Name+"-")
 	if err != nil {
-		return err
+		return summon.Task{}, err
 	}
-
-	options := "noatime"
-	if d.FSType == "" {
-		if d.FSType, err = d.identifyFSType(); err != nil {
-			return err
-		}
-	}
-	if d.FSType == Btrfs {
-		options = fmt.Sprintf("%s,compress=lzo,subvol=%s", options, btrfsActive)
-	}
-
-	cmd := exec.Command(
-		"mount",
-		"-t", string(d.FSType),
-		"-o", options,
-		d.fsDev(),
-		d.Dir,
+	return summon.Parallel(
+		fmt.Sprintf("On btrfs %s make subvolume %s", m.Device, m.Name),
+		Mount{
+			Device:    m.Device,
+			MountPath: tmpdir,
+		}.Task(),
+		summon.DoTask(func(ctx context.Context) error {
+			return summon.Runf(ctx, "btrfs subvolume create %q", path.Join(tmpdir, m.Name))
+		}),
 	)
-	if err := run(cmd, kill); err != nil {
-		return err
-	}
-	return nil
 }
 
-// Get the device path where the filesystem resides.
-func (d *RootDisk) fsDev() string {
-	if d.Password == "" {
-		return d.Device
-	}
-	return d.Mapper
-}
+const (
+	MountNoatime     = "noatime"
+	MountCompressLZO = "compress=lzo"
+)
 
-// Identify the FSType.
-func (d *RootDisk) identifyFSType() (FSType, error) {
-	cmd := exec.Command("lsblk", "--noheadings", "--output", "fstype", d.fsDev())
+// IdentifyFSType identifies the filesystem on the specified device.
+func IdentifyFSType(ctx context.Context, device string) (string, error) {
+	cmd := summon.MustCmdf(ctx, "lsblk --noheadings --output fstype %q", device)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return FSType(""), fmt.Errorf("error running command: %q: %v\n%s", cmd, err, out)
+		return "", fmt.Errorf("error running command: %q: %v\n%s", cmd, err, out)
 	}
-	return FSType(string(bytes.TrimSpace(out))), nil
-}
-
-// Unmount the File System.
-func (d *RootDisk) Umount(kill chan bool) error {
-	cmd := exec.Command("umount", d.Dir)
-	if err := run(cmd, kill); err != nil {
-		return err
-	}
-
-	if err := os.Remove(d.Dir); err != nil {
-		return err
-	}
-	return nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 // Create a snapshot, if the target File System supports this.

@@ -22,3 +22,9 @@ echo
 []string{"/home/naitik shah/foo/bar"}
 nil
 ---
+
+[TestShellf/multiline_with_spaces - 1]
+cryptsetup
+[]string{"luksFormat", "--cipher", "aes-xts-plain64", "--key-size", "512", "--hash", "sha512", "--iter-time", "5000", "--use-random", "/home/naitik shah"}
+nil
+---

@@ -24,6 +24,19 @@ func TestShellf(t *testing.T) {
 		{name: "fixed args", format: "echo hello world"},
 		{name: "arg with space", format: "echo %q", args: []any{"hello world"}},
 		{name: "path quoting", format: "echo %q/foo/bar", args: []any{"/home/naitik shah"}},
+		{
+			name: "multiline with spaces",
+			format: `
+				cryptsetup luksFormat
+					--cipher aes-xts-plain64
+					--key-size 512
+					--hash sha512
+					--iter-time 5000
+					--use-random
+					%q
+				`,
+			args: []any{"/home/naitik shah"},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
